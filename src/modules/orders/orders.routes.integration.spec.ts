@@ -17,7 +17,7 @@ import {
 import {type Database} from '@/db/type.js';
 import {buildFastify} from '@/fastify.js';
 
-describe('MyController Integration Tests', () => {
+describe('Orders routes integration tests', () => {
 	let fastify: FastifyInstance;
 	let database: Database;
 	let notificationServiceMock: DeepMockProxy<INotificationService>;
