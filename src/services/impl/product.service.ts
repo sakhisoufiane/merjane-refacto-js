@@ -1,5 +1,7 @@
 import {type Cradle} from '@fastify/awilix';
-import {eq} from 'drizzle-orm';
+import {
+	and, eq, gt, sql,
+} from 'drizzle-orm';
 import {type INotificationService} from '../notifications.port.js';
 import {products, type Product} from '@/db/schema.js';
 import {type Database} from '@/db/type.js';
@@ -14,38 +16,44 @@ export class ProductService {
 		this.db = db;
 	}
 
-	public async notifyDelay(leadTime: number, p: Product): Promise<void> {
-		p.leadTime = leadTime;
-		await this.db.update(products).set(p).where(eq(products.id, p.id));
-		this.ns.sendDelayNotification(leadTime, p.name);
+	/**
+	 * Atomically decrements `available` only when stock is still > 0.
+	 * Returns `true` when a row was updated, `false` when the product is out of stock.
+	 * Must be called inside a transaction to make the check-and-decrement race-free.
+	 */
+	public decrementAvailableIfInStock(product: Product, tx: Database = this.db): boolean {
+		const result = tx
+			.update(products)
+			.set({available: sql`${products.available} - 1`})
+			.where(and(eq(products.id, product.id), gt(products.available, 0)))
+			.run();
+
+		return result.changes > 0;
 	}
 
-	public async handleSeasonalProduct(p: Product): Promise<void> {
-		assertSeasonDates(p);
+	public notifyDelay(leadTime: number, product: Product, tx: Database = this.db): void {
+		tx.update(products).set({leadTime}).where(eq(products.id, product.id)).run();
+		this.ns.sendDelayNotification(leadTime, product.name);
+	}
+
+	public handleSeasonalProduct(product: Product, tx: Database = this.db): void {
+		assertSeasonDates(product);
 		const currentDate = new Date();
-		const d = 1000 * 60 * 60 * 24;
-		if (new Date(currentDate.getTime() + (p.leadTime * d)) > p.seasonEndDate) {
-			this.ns.sendOutOfStockNotification(p.name);
-			p.available = 0;
-			await this.db.update(products).set(p).where(eq(products.id, p.id));
-		} else if (p.seasonStartDate > currentDate) {
-			this.ns.sendOutOfStockNotification(p.name);
-			await this.db.update(products).set(p).where(eq(products.id, p.id));
+		const oneDayInMs = 1000 * 60 * 60 * 24;
+
+		if (new Date(currentDate.getTime() + (product.leadTime * oneDayInMs)) > product.seasonEndDate) {
+			this.ns.sendOutOfStockNotification(product.name);
+			tx.update(products).set({available: 0}).where(eq(products.id, product.id)).run();
+		} else if (product.seasonStartDate > currentDate) {
+			this.ns.sendOutOfStockNotification(product.name);
 		} else {
-			await this.notifyDelay(p.leadTime, p);
+			this.notifyDelay(product.leadTime, product, tx);
 		}
 	}
 
-	public async handleExpiredProduct(p: Product): Promise<void> {
-		assertExpiryDate(p);
-		const currentDate = new Date();
-		if (p.available > 0 && p.expiryDate > currentDate) {
-			p.available -= 1;
-			await this.db.update(products).set(p).where(eq(products.id, p.id));
-		} else {
-			this.ns.sendExpirationNotification(p.name, p.expiryDate);
-			p.available = 0;
-			await this.db.update(products).set(p).where(eq(products.id, p.id));
-		}
+	public handleExpiredProduct(product: Product, tx: Database = this.db): void {
+		assertExpiryDate(product);
+		this.ns.sendExpirationNotification(product.name, product.expiryDate);
+		tx.update(products).set({available: 0}).where(eq(products.id, product.id)).run();
 	}
 }

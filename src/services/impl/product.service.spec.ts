@@ -2,6 +2,7 @@ import {
 	describe, it, expect, beforeEach,
 	afterEach,
 } from 'vitest';
+import {eq} from 'drizzle-orm';
 import {mockDeep, type DeepMockProxy} from 'vitest-mock-extended';
 import {type INotificationService} from '../notifications.port.js';
 import {createDatabaseMock, cleanUp} from '../../utils/test-utils/database-tools.ts.js';
@@ -46,7 +47,7 @@ describe('ProductService Tests', () => {
 		await databaseMock.insert(products).values(product);
 
 		// WHEN
-		await productService.notifyDelay(product.leadTime, product);
+		productService.notifyDelay(product.leadTime, product);
 
 		// THEN
 		expect(product.available).toBe(0);
@@ -58,10 +59,34 @@ describe('ProductService Tests', () => {
 		expect(result).toEqual(product);
 	});
 
-	it('should throw when an expirable product has no expiry date', async () => {
+	it('should atomically decrement available only while stock is positive', async () => {
 		// GIVEN
 		const product: Product = {
 			id: 2,
+			leadTime: 15,
+			available: 1,
+			type: 'NORMAL',
+			name: 'USB Cable',
+			expiryDate: null,
+			seasonStartDate: null,
+			seasonEndDate: null,
+		};
+		databaseMock.insert(products).values(product).run();
+
+		// WHEN / THEN
+		expect(productService.decrementAvailableIfInStock(product)).toBe(true);
+		expect(productService.decrementAvailableIfInStock(product)).toBe(false);
+
+		const result = await databaseMock.query.products.findFirst({
+			where: eq(products.id, product.id),
+		});
+		expect(result?.available).toBe(0);
+	});
+
+	it('should throw when an expirable product has no expiry date', async () => {
+		// GIVEN
+		const product: Product = {
+			id: 3,
 			leadTime: 10,
 			available: 5,
 			type: 'EXPIRABLE',
@@ -72,13 +97,15 @@ describe('ProductService Tests', () => {
 		};
 
 		// WHEN / THEN
-		await expect(productService.handleExpiredProduct(product)).rejects.toThrow(InvalidProductDataError);
+		expect(() => {
+			productService.handleExpiredProduct(product);
+		}).toThrow(InvalidProductDataError);
 	});
 
 	it('should throw when a seasonal product is missing season dates', async () => {
 		// GIVEN
 		const product: Product = {
-			id: 3,
+			id: 4,
 			leadTime: 10,
 			available: 5,
 			type: 'SEASONAL',
@@ -89,7 +116,9 @@ describe('ProductService Tests', () => {
 		};
 
 		// WHEN / THEN
-		await expect(productService.handleSeasonalProduct(product)).rejects.toThrow(InvalidProductDataError);
+		expect(() => {
+			productService.handleSeasonalProduct(product);
+		}).toThrow(InvalidProductDataError);
 	});
 });
 

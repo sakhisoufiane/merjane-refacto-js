@@ -1,10 +1,9 @@
 /* eslint-disable max-depth */
-/* eslint-disable no-await-in-loop */
 import {eq} from 'drizzle-orm';
 import fastifyPlugin from 'fastify-plugin';
 import {serializerCompiler, validatorCompiler, type ZodTypeProvider} from 'fastify-type-provider-zod';
 import {z} from 'zod';
-import {orders, products} from '@/db/schema.js';
+import {orders} from '@/db/schema.js';
 import {OrderNotFoundError} from '@/errors.js';
 import {assertExpiryDate, assertSeasonDates} from '@/utils/product-dates.js';
 
@@ -44,52 +43,46 @@ export const myController = fastifyPlugin(async server => {
 
 		const {products: productList} = order;
 
-		if (productList) {
-			for (const {product: p} of productList) {
-				// The switch is now exhaustive by design through the PRODUCT_TYPES type in the schema.
-				switch (p.type) {
-					case 'NORMAL': {
-						if (p.available > 0) {
-							p.available -= 1;
-							await dbse.update(products).set(p).where(eq(products.id, p.id));
-						} else {
-							const {leadTime} = p;
-							if (leadTime > 0) {
-								await ps.notifyDelay(leadTime, p);
+		dbse.transaction(tx => {
+			if (productList) {
+				for (const {product: p} of productList) {
+					// The switch is now exhaustive by design through the PRODUCT_TYPES type in the schema.
+					switch (p.type) {
+						case 'NORMAL': {
+							if (!ps.decrementAvailableIfInStock(p, tx)) {
+								const {leadTime} = p;
+								if (leadTime > 0) {
+									ps.notifyDelay(leadTime, p, tx);
+								}
 							}
+
+							break;
 						}
 
-						break;
-					}
+						case 'SEASONAL': {
+							assertSeasonDates(p);
+							const currentDate = new Date();
+							const isInSeason = currentDate > p.seasonStartDate && currentDate < p.seasonEndDate;
+							if (!isInSeason || !ps.decrementAvailableIfInStock(p, tx)) {
+								ps.handleSeasonalProduct(p, tx);
+							}
 
-					case 'SEASONAL': {
-						assertSeasonDates(p);
-						const currentDate = new Date();
-						if (currentDate > p.seasonStartDate && currentDate < p.seasonEndDate && p.available > 0) {
-							p.available -= 1;
-							await dbse.update(products).set(p).where(eq(products.id, p.id));
-						} else {
-							await ps.handleSeasonalProduct(p);
+							break;
 						}
 
-						break;
-					}
+						case 'EXPIRABLE': {
+							assertExpiryDate(p);
+							const isExpired = p.expiryDate <= new Date();
+							if (isExpired || !ps.decrementAvailableIfInStock(p, tx)) {
+								ps.handleExpiredProduct(p, tx);
+							}
 
-					case 'EXPIRABLE': {
-						assertExpiryDate(p);
-						const currentDate = new Date();
-						if (p.available > 0 && p.expiryDate > currentDate) {
-							p.available -= 1;
-							await dbse.update(products).set(p).where(eq(products.id, p.id));
-						} else {
-							await ps.handleExpiredProduct(p);
+							break;
 						}
-
-						break;
 					}
 				}
 			}
-		}
+		});
 
 		await reply.send({orderId: order.id});
 	});
