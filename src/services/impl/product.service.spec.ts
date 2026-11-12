@@ -8,6 +8,7 @@ import {createDatabaseMock, cleanUp} from '../../utils/test-utils/database-tools
 import {ProductService} from './product.service.js';
 import {products, type Product} from '@/db/schema.js';
 import {type Database} from '@/db/type.js';
+import {InvalidProductDataError} from '@/errors.js';
 
 describe('ProductService Tests', () => {
 	let notificationServiceMock: DeepMockProxy<INotificationService>;
@@ -55,6 +56,40 @@ describe('ProductService Tests', () => {
 			where: (product, {eq}) => eq(product.id, product.id),
 		});
 		expect(result).toEqual(product);
+	});
+
+	it('should throw when an expirable product has no expiry date', async () => {
+		// GIVEN
+		const product: Product = {
+			id: 2,
+			leadTime: 10,
+			available: 5,
+			type: 'EXPIRABLE',
+			name: 'Milk',
+			expiryDate: null,
+			seasonStartDate: null,
+			seasonEndDate: null,
+		};
+
+		// WHEN / THEN
+		await expect(productService.handleExpiredProduct(product)).rejects.toThrow(InvalidProductDataError);
+	});
+
+	it('should throw when a seasonal product is missing season dates', async () => {
+		// GIVEN
+		const product: Product = {
+			id: 3,
+			leadTime: 10,
+			available: 5,
+			type: 'SEASONAL',
+			name: 'Watermelon',
+			expiryDate: null,
+			seasonStartDate: null,
+			seasonEndDate: null,
+		};
+
+		// WHEN / THEN
+		await expect(productService.handleSeasonalProduct(product)).rejects.toThrow(InvalidProductDataError);
 	});
 });
 

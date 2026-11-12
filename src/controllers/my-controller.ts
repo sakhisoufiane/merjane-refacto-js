@@ -6,6 +6,7 @@ import {serializerCompiler, validatorCompiler, type ZodTypeProvider} from 'fasti
 import {z} from 'zod';
 import {orders, products} from '@/db/schema.js';
 import {OrderNotFoundError} from '@/errors.js';
+import {assertExpiryDate, assertSeasonDates} from '@/utils/product-dates.js';
 
 export const myController = fastifyPlugin(async server => {
 	// Add schema validator and serializer
@@ -62,8 +63,9 @@ export const myController = fastifyPlugin(async server => {
 					}
 
 					case 'SEASONAL': {
+						assertSeasonDates(p);
 						const currentDate = new Date();
-						if (currentDate > p.seasonStartDate! && currentDate < p.seasonEndDate! && p.available > 0) {
+						if (currentDate > p.seasonStartDate && currentDate < p.seasonEndDate && p.available > 0) {
 							p.available -= 1;
 							await dbse.update(products).set(p).where(eq(products.id, p.id));
 						} else {
@@ -74,8 +76,9 @@ export const myController = fastifyPlugin(async server => {
 					}
 
 					case 'EXPIRABLE': {
+						assertExpiryDate(p);
 						const currentDate = new Date();
-						if (p.available > 0 && p.expiryDate! > currentDate) {
+						if (p.available > 0 && p.expiryDate > currentDate) {
 							p.available -= 1;
 							await dbse.update(products).set(p).where(eq(products.id, p.id));
 						} else {

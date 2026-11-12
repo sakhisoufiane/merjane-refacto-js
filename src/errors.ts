@@ -5,3 +5,9 @@ export class OrderNotFoundError extends createError(
 	'Order with id %s not found',
 	404,
 ) {}
+
+export class InvalidProductDataError extends createError(
+	'ERR_INVALID_PRODUCT_DATA',
+	'Product %s of type %s is missing required field "%s"',
+	500,
+) {}
