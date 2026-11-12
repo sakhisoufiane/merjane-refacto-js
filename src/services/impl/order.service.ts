@@ -7,16 +7,16 @@ import {OrderNotFoundError} from '@/errors.js';
 import {assertExpiryDate, assertSeasonDates} from '@/utils/product-dates.js';
 
 export class OrderService {
-	private readonly db: Database;
+	private readonly database: Database;
 	private readonly productService: ProductService;
 
-	public constructor({db, ps}: Pick<Cradle, 'db' | 'ps'>) {
-		this.db = db;
-		this.productService = ps;
+	public constructor({database, productService}: Pick<Cradle, 'database' | 'productService'>) {
+		this.database = database;
+		this.productService = productService;
 	}
 
 	public async processOrder(orderId: number): Promise<number> {
-		const order = await this.db.query.orders.findFirst({
+		const order = await this.database.query.orders.findFirst({
 			where: eq(orders.id, orderId),
 			with: {
 				products: {
@@ -32,7 +32,7 @@ export class OrderService {
 			throw new OrderNotFoundError(orderId);
 		}
 
-		this.db.transaction(tx => {
+		this.database.transaction(tx => {
 			for (const {product} of order.products) {
 				this.processProduct(product, tx);
 			}

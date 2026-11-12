@@ -8,12 +8,12 @@ import {type Database} from '@/db/type.js';
 import {assertExpiryDate, assertSeasonDates} from '@/utils/product-dates.js';
 
 export class ProductService {
-	private readonly ns: INotificationService;
-	private readonly db: Database;
+	private readonly notificationService: INotificationService;
+	private readonly database: Database;
 
-	public constructor({ns, db}: Pick<Cradle, 'ns' | 'db'>) {
-		this.ns = ns;
-		this.db = db;
+	public constructor({notificationService, database}: Pick<Cradle, 'notificationService' | 'database'>) {
+		this.notificationService = notificationService;
+		this.database = database;
 	}
 
 	/**
@@ -21,7 +21,7 @@ export class ProductService {
 	 * Returns `true` when a row was updated, `false` when the product is out of stock.
 	 * Must be called inside a transaction to make the check-and-decrement race-free.
 	 */
-	public decrementAvailableIfInStock(product: Product, tx: Database = this.db): boolean {
+	public decrementAvailableIfInStock(product: Product, tx: Database = this.database): boolean {
 		const result = tx
 			.update(products)
 			.set({available: sql`${products.available} - 1`})
@@ -31,29 +31,29 @@ export class ProductService {
 		return result.changes > 0;
 	}
 
-	public notifyDelay(leadTime: number, product: Product, tx: Database = this.db): void {
+	public notifyDelay(leadTime: number, product: Product, tx: Database = this.database): void {
 		tx.update(products).set({leadTime}).where(eq(products.id, product.id)).run();
-		this.ns.sendDelayNotification(leadTime, product.name);
+		this.notificationService.sendDelayNotification(leadTime, product.name);
 	}
 
-	public handleSeasonalProduct(product: Product, tx: Database = this.db): void {
+	public handleSeasonalProduct(product: Product, tx: Database = this.database): void {
 		assertSeasonDates(product);
 		const currentDate = new Date();
 		const oneDayInMs = 1000 * 60 * 60 * 24;
 
 		if (new Date(currentDate.getTime() + (product.leadTime * oneDayInMs)) > product.seasonEndDate) {
-			this.ns.sendOutOfStockNotification(product.name);
+			this.notificationService.sendOutOfStockNotification(product.name);
 			tx.update(products).set({available: 0}).where(eq(products.id, product.id)).run();
 		} else if (product.seasonStartDate > currentDate) {
-			this.ns.sendOutOfStockNotification(product.name);
+			this.notificationService.sendOutOfStockNotification(product.name);
 		} else {
 			this.notifyDelay(product.leadTime, product, tx);
 		}
 	}
 
-	public handleExpiredProduct(product: Product, tx: Database = this.db): void {
+	public handleExpiredProduct(product: Product, tx: Database = this.database): void {
 		assertExpiryDate(product);
-		this.ns.sendExpirationNotification(product.name, product.expiryDate);
+		this.notificationService.sendExpirationNotification(product.name, product.expiryDate);
 		tx.update(products).set({available: 0}).where(eq(products.id, product.id)).run();
 	}
 }

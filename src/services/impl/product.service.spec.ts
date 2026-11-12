@@ -22,8 +22,8 @@ describe('ProductService Tests', () => {
 		({databaseMock, databaseName, close: closeDatabase} = await createDatabaseMock());
 		notificationServiceMock = mockDeep<INotificationService>();
 		productService = new ProductService({
-			ns: notificationServiceMock,
-			db: databaseMock,
+			notificationService: notificationServiceMock,
+			database: databaseMock,
 		});
 	});
 
@@ -54,7 +54,7 @@ describe('ProductService Tests', () => {
 		expect(product.leadTime).toBe(15);
 		expect(notificationServiceMock.sendDelayNotification).toHaveBeenCalledWith(product.leadTime, product.name);
 		const result = await databaseMock.query.products.findFirst({
-			where: (product, {eq}) => eq(product.id, product.id),
+			where: eq(products.id, product.id),
 		});
 		expect(result).toEqual(product);
 	});

@@ -27,7 +27,7 @@ describe('MyController Integration Tests', () => {
 
 		fastify = await buildFastify();
 		fastify.diContainer.register({
-			ns: asValue(notificationServiceMock as INotificationService),
+			notificationService: asValue(notificationServiceMock as INotificationService),
 		});
 		await fastify.ready();
 		database = fastify.database;
@@ -42,7 +42,7 @@ describe('MyController Integration Tests', () => {
 		const orderId = database.transaction(tx => {
 			const productList = tx.insert(products).values(allProducts).returning({productId: products.id}).all();
 			const order = tx.insert(orders).values([{}]).returning({orderId: orders.id}).get();
-			tx.insert(ordersToProducts).values(productList.map(p => ({orderId: order.orderId, productId: p.productId}))).run();
+			tx.insert(ordersToProducts).values(productList.map(product => ({orderId: order.orderId, productId: product.productId}))).run();
 			return order.orderId;
 		});
 
@@ -79,7 +79,7 @@ describe('MyController Integration Tests', () => {
 	});
 
 	function createProducts(): ProductInsert[] {
-		const d = 24 * 60 * 60 * 1000;
+		const oneDayInMs = 24 * 60 * 60 * 1000;
 		return [
 			{
 				leadTime: 15, available: 30, type: 'NORMAL', name: 'USB Cable',
@@ -88,16 +88,16 @@ describe('MyController Integration Tests', () => {
 				leadTime: 10, available: 0, type: 'NORMAL', name: 'USB Dongle',
 			},
 			{
-				leadTime: 15, available: 30, type: 'EXPIRABLE', name: 'Butter', expiryDate: new Date(Date.now() + (26 * d)),
+				leadTime: 15, available: 30, type: 'EXPIRABLE', name: 'Butter', expiryDate: new Date(Date.now() + (26 * oneDayInMs)),
 			},
 			{
-				leadTime: 90, available: 6, type: 'EXPIRABLE', name: 'Milk', expiryDate: new Date(Date.now() - (2 * d)),
+				leadTime: 90, available: 6, type: 'EXPIRABLE', name: 'Milk', expiryDate: new Date(Date.now() - (2 * oneDayInMs)),
 			},
 			{
-				leadTime: 15, available: 30, type: 'SEASONAL', name: 'Watermelon', seasonStartDate: new Date(Date.now() - (2 * d)), seasonEndDate: new Date(Date.now() + (58 * d)),
+				leadTime: 15, available: 30, type: 'SEASONAL', name: 'Watermelon', seasonStartDate: new Date(Date.now() - (2 * oneDayInMs)), seasonEndDate: new Date(Date.now() + (58 * oneDayInMs)),
 			},
 			{
-				leadTime: 15, available: 30, type: 'SEASONAL', name: 'Grapes', seasonStartDate: new Date(Date.now() + (180 * d)), seasonEndDate: new Date(Date.now() + (240 * d)),
+				leadTime: 15, available: 30, type: 'SEASONAL', name: 'Grapes', seasonStartDate: new Date(Date.now() + (180 * oneDayInMs)), seasonEndDate: new Date(Date.now() + (240 * oneDayInMs)),
 			},
 		];
 	}
