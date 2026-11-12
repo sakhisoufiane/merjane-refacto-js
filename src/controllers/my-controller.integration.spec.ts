@@ -50,6 +50,19 @@ describe('MyController Integration Tests', () => {
 
 		const resultOrder = await database.query.orders.findFirst({where: eq(orders.id, orderId)});
 		expect(resultOrder!.id).toBe(orderId);
+
+		const processedProducts = await database.query.products.findMany();
+		const availabilityByName = new Map(processedProducts.map(product => [product.name, product.available]));
+
+		expect(availabilityByName.get('USB Cable')).toBe(29);
+		expect(availabilityByName.get('USB Dongle')).toBe(0);
+		expect(availabilityByName.get('Butter')).toBe(29);
+		expect(availabilityByName.get('Milk')).toBe(0);
+		expect(availabilityByName.get('Watermelon')).toBe(29);
+		expect(availabilityByName.get('Grapes')).toBe(30);
+
+		expect(notificationServiceMock.sendDelayNotification).toHaveBeenCalledWith(10, 'USB Dongle');
+		expect(notificationServiceMock.sendOutOfStockNotification).toHaveBeenCalledWith('Grapes');
 	});
 
 	it('returns 404 when the order does not exist', async () => {

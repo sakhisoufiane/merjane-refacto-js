@@ -4,6 +4,7 @@ import {type FastifyBaseLogger, type FastifyInstance} from 'fastify';
 import {type INotificationService} from '@/services/notifications.port.js';
 import {NotificationService} from '@/services/impl/notification.service.js';
 import {type Database} from '@/db/type.js';
+import {OrderService} from '@/services/impl/order.service.js';
 import {ProductService} from '@/services/impl/product.service.js';
 
 declare module '@fastify/awilix' {
@@ -13,6 +14,7 @@ declare module '@fastify/awilix' {
 		db: Database;
 		ns: INotificationService;
 		ps: ProductService;
+		os: OrderService;
 	}
 }
 
@@ -30,6 +32,9 @@ export async function configureDiContext(
 	});
 	diContainer.register({
 		ps: asClass(ProductService),
+	});
+	diContainer.register({
+		os: asClass(OrderService),
 	});
 }
 
