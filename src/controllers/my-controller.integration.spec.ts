@@ -42,14 +42,27 @@ describe('MyController Integration Tests', () => {
 		const orderId = database.transaction(tx => {
 			const productList = tx.insert(products).values(allProducts).returning({productId: products.id}).all();
 			const order = tx.insert(orders).values([{}]).returning({orderId: orders.id}).get();
-			tx.insert(ordersToProducts).values(productList.map(p => ({orderId: order!.orderId, productId: p.productId}))).run();
-			return order!.orderId;
+			tx.insert(ordersToProducts).values(productList.map(p => ({orderId: order.orderId, productId: p.productId}))).run();
+			return order.orderId;
 		});
 
 		await client.post(`/orders/${orderId}/processOrder`).expect(200).expect('Content-Type', /application\/json/);
 
 		const resultOrder = await database.query.orders.findFirst({where: eq(orders.id, orderId)});
 		expect(resultOrder!.id).toBe(orderId);
+	});
+
+	it('returns 404 when the order does not exist', async () => {
+		const client = supertest(fastify.server);
+
+		const response = await client
+			.post('/orders/999999/processOrder')
+			.expect(404);
+
+		expect(response.body).toMatchObject({
+			statusCode: 404,
+			code: 'ERR_ORDER_NOT_FOUND',
+		});
 	});
 
 	function createProducts(): ProductInsert[] {

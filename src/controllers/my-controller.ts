@@ -6,6 +6,7 @@ import fastifyPlugin from 'fastify-plugin';
 import {serializerCompiler, validatorCompiler, type ZodTypeProvider} from 'fastify-type-provider-zod';
 import {z} from 'zod';
 import {orders, products} from '@/db/schema.js';
+import {OrderNotFoundError} from '@/errors.js';
 
 export const myController = fastifyPlugin(async server => {
 	// Add schema validator and serializer
@@ -21,7 +22,7 @@ export const myController = fastifyPlugin(async server => {
 	}, async (request, reply) => {
 		const dbse = server.diContainer.resolve('db');
 		const ps = server.diContainer.resolve('ps');
-		const order = (await dbse.query.orders
+		const order = await dbse.query.orders
 			.findFirst({
 				where: eq(orders.id, request.params.orderId),
 				with: {
@@ -32,7 +33,13 @@ export const myController = fastifyPlugin(async server => {
 						},
 					},
 				},
-			}))!;
+			});
+
+		// Throw an error when no order matches the provided ID.
+		if (!order) {
+			throw new OrderNotFoundError(request.params.orderId);
+		}
+
 		console.log(order);
 		const ids: number[] = [request.params.orderId];
 		const {products: productList} = order;
