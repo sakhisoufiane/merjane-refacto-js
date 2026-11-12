@@ -3,6 +3,7 @@ import {
 	afterEach,
 } from 'vitest';
 import {eq} from 'drizzle-orm';
+import {pino} from 'pino';
 import {mockDeep, type DeepMockProxy} from 'vitest-mock-extended';
 import {type INotificationService} from '../notifications.port.js';
 import {createDatabaseMock, cleanUp} from '../../utils/test-utils/database-tools.ts.js';
@@ -24,6 +25,7 @@ describe('ProductService Tests', () => {
 		productService = new ProductService({
 			notificationService: notificationServiceMock,
 			database: databaseMock,
+			logger: pino({level: 'silent'}),
 		});
 	});
 

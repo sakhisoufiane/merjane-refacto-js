@@ -1,5 +1,6 @@
 import {type Cradle} from '@fastify/awilix';
 import {eq} from 'drizzle-orm';
+import {type FastifyBaseLogger} from 'fastify';
 import {type ProductService} from './product.service.js';
 import {orders, type Product} from '@/db/schema.js';
 import {type Database} from '@/db/type.js';
@@ -9,10 +10,12 @@ import {assertExpiryDate, assertSeasonDates} from '@/utils/product-dates.js';
 export class OrderService {
 	private readonly database: Database;
 	private readonly productService: ProductService;
+	private readonly logger: FastifyBaseLogger;
 
-	public constructor({database, productService}: Pick<Cradle, 'database' | 'productService'>) {
+	public constructor({database, productService, logger}: Pick<Cradle, 'database' | 'productService' | 'logger'>) {
 		this.database = database;
 		this.productService = productService;
+		this.logger = logger;
 	}
 
 	public async processOrder(orderId: number): Promise<number> {
@@ -29,19 +32,31 @@ export class OrderService {
 		});
 
 		if (!order) {
+			this.logger.warn({orderId}, 'Order not found');
 			throw new OrderNotFoundError(orderId);
 		}
 
+		this.logger.debug({orderId, productCount: order.products.length}, 'Processing order');
+
 		this.database.transaction(tx => {
 			for (const {product} of order.products) {
-				this.processProduct(product, tx);
+				this.processProduct(orderId, product, tx);
 			}
 		});
+
+		this.logger.info({orderId, productCount: order.products.length}, 'Order processed');
 
 		return order.id;
 	}
 
-	private processProduct(product: Product, tx: Database): void {
+	private processProduct(orderId: number, product: Product, tx: Database): void {
+		this.logger.debug(
+			{
+				orderId, productId: product.id, productName: product.name, type: product.type,
+			},
+			'Processing product',
+		);
+
 		switch (product.type) {
 			case 'NORMAL': {
 				const decremented = this.productService.decrementAvailableIfInStock(product, tx);
