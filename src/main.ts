@@ -1,9 +1,11 @@
+import process from 'node:process';
 import {install as sourceMapSupport} from 'source-map-support';
 import {CONFIG} from './configuration/index.js';
 import {buildFastify} from './fastify.js';
 
-const main = async () => {
+const main = async (): Promise<void> => {
 	const serverConfig = CONFIG.get('server');
+	const appConfig = CONFIG.get('app');
 	const debugConfig = CONFIG.get('debug');
 
 	if (debugConfig.sourcemap) {
@@ -12,17 +14,15 @@ const main = async () => {
 
 	const server = await buildFastify();
 
-	server.listen({host: '0.0.0.0', port: serverConfig.port}, error => {
-		if (error) {
-			throw error;
-		}
-	});
-
-	server.ready(() => {
-		const routes = server.printRoutes();
-		console.log(`Available Routes:\n${routes}`);
-	});
+	try {
+		await server.listen({host: '0.0.0.0', port: serverConfig.port});
+		server.log.info({env: appConfig.env, port: serverConfig.port}, 'Server listening');
+		server.log.info({routes: server.printRoutes()}, 'Available routes');
+	} catch (error) {
+		server.log.error(error);
+		process.exitCode = 1;
+		await server.close();
+	}
 };
 
-main(); // eslint-disable-line @typescript-eslint/no-floating-promises
-
+await main();

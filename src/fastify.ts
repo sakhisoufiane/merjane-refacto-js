@@ -4,16 +4,17 @@ import {awilixPlugin} from './di/awilix.plugin.js';
 import {configureDiContext} from './di/di.context.js';
 import shutdownPlugin from './shutdown/shutdown.plugin.js';
 import {drizzlePlugin} from './db/drizzle.plugin.js';
-import {myController} from './controllers/my-controller.js';
+import {logger} from './logging/logger.js';
+import {ordersRoutes} from './modules/orders/orders.routes.js';
 
 export async function buildFastify() {
-	const server = fastify();
+	const server = fastify({logger});
 
 	await server.register(awilixPlugin());
 	await server.register(drizzlePlugin);
 	await server.register(shutdownPlugin);
 	await server.register(configureDiContext);
-	await server.register(myController);
+	await server.register(ordersRoutes);
 
 	server.addHook('onRequest', async request => {
 		request.diScope.register({

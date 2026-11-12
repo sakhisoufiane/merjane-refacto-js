@@ -37,8 +37,8 @@ export const CONFIG = dotEnvConvict({
 	log: {
 		level: {
 			doc: 'Log level',
-			format: ['error', 'warning', 'notice', 'info', 'debug'],
-			default: 'warning',
+			format: ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'],
+			default: 'warn',
 			env: 'LOG_LEVEL',
 		},
 		format: {
