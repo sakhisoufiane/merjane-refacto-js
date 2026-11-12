@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/switch-exhaustiveness-check */
 /* eslint-disable max-depth */
 /* eslint-disable no-await-in-loop */
 import {eq} from 'drizzle-orm';
@@ -46,6 +45,7 @@ export const myController = fastifyPlugin(async server => {
 
 		if (productList) {
 			for (const {product: p} of productList) {
+				// The switch is now exhaustive by design through the PRODUCT_TYPES type in the schema.
 				switch (p.type) {
 					case 'NORMAL': {
 						if (p.available > 0) {
